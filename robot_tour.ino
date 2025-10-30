@@ -14,7 +14,8 @@ MeDCMotor motorLeft(M1);
 MeDCMotor motorRight(M2);
 
 int TIME_TO_STOP = 0; // target time between 50 - 75 seconds, no need to change it here, it is set in hard().
-const int DEFAULT_SPEED = 220; // value from 1 to 255, 162
+const int DEFAULT_SPEED = 220; // 220; // value from 1 to 255, 162
+const int SLOW_SPEED = 150; // value from 1 to 255, 162
 const int TURN_SPEED = 200; // value from 1 to 255
 const int TURN_SPEED_SLOW = 75; // value from 1 to 255
 const int DISTANCE_TO_WALL = 20;  // cm to the wall, + 2 cm obstacle + 9 cm to the tobot center - 6cm for inertia= 25cm.
@@ -38,9 +39,9 @@ float heading = 0;
 void test_gyro() {
   do {
     digitalWrite(LED_BUILTIN, HIGH);  // turn the LED on (HIGH is the voltage level)
-    delay(1000);                      // wait for a second
+    sleep(1000);                      // wait for a second
     digitalWrite(LED_BUILTIN, LOW);   // turn the LED off by making the voltage LOW
-    delay(1000);                      // wait for a second
+    sleep(1000);                      // wait for a second
   } while(fabs(checkGyro()) > 1.0);
 }
 
@@ -57,83 +58,54 @@ void sleep(unsigned long sleep_ms) {
   }
 }
 
+void front();
+void back();
 void frontWall();
-void rightWall();
 void leftWall();
+void rightWall();
 void leftShortWall();
 void rightShortWall();
-void enterGate();
-void bottleLeft();
-void bottleRight();
+void leftBottle();
+void rightBottle();
+void right(); // do not count as a step
+void left();  // do not count as a step
+void rightSlow(); // do not count as a step
+void leftSlow();  // do not count as a step
+void backByFrontWall(); // do not count as a step
 
 void hard() {
-  init_robot();
-
-  TIME_TO_STOP = 55; // target time between 55 - 80 seconds
-  total_steps = 34;   // How many box moves the robot need to make. 
-
-  moveForward(ONE_BOX_MOVING_MS/50*36);  // move to the center of the first box.
-  right(); front();
-  left(); bottleLeft();
-  right(); back();
-  turnRightSlow(); back();
+  sleep(1000); // breathing
+  moveForward(ONE_BOX_MOVING_MS / 50 * 36); // first step
+  right();
+  front(); 
+  left();
+  leftBottle();
+  right(); 
+  back(); 
+  rightSlow();
+  back();
   front();
-  left(); front();
-  left(); leftWall();
-  bottleLeft();
-  right(); back();
-  turnRightSlow(); back();
-  frontWall();
+  left();
+  leftShortWall(); 
+  left(); 
+  leftWall();
+  front();
+  left(); 
+  rightShortWall();
+  back(); 
+  left();
+  back();
 }
 
-void hard1() {
-  init_robot();
+void leftBottle() {
+  bottle(ultraSensorLeft);
+}
 
-  TIME_TO_STOP = 55; // target time between 55 - 80 seconds
-  total_steps = 34;   // How many box moves the robot need to make. 
-
-  moveForward(ONE_BOX_MOVING_MS/50*36);  // move to the center of the first box.
-  right(); front();
-  left(); front();
-  leftWall();
-  front();
-  leftWall();
-  back();
-  turnLeftSlow(); rightShortWall();
-  rightShortWall();
-  right(); leftShortWall();
-  left(); leftWall();
-  back();
-  turnLeftSlow(); frontWall();
-  right(); rightWall();
-  left(); leftShortWall();
-  frontWall();
-  left(); frontWall();
-  right(); front();
-  right(); rightWall();
-  back();
-  turnRightSlow(); front();
-  frontWall();
-  left(); front();
-  right(); frontWall();
-  right(); rightWall();
-  leftShortWall();
-  leftShortWall();
-  right(); rightShortWall();
-  front();
-  right(); frontWall();
-  right(); frontWall();
-  back();
-  turnRightSlow(); leftShortWall();
-  left(); leftWall();
-  front();
-  left(); rightShortWall();
-  right(); leftWall();
-  lastStep();
+void rightBottle() {
+  bottle(ultraSensorRight);
 }
 
 void lastStep() {
-  int DISTANCE_TO_STOP = 20; // 20 + 2cm wall + 3cm inertia = 25cm
   int left_distance = ultraSensorLeft.distanceCm();
   int right_distance = ultraSensorRight.distanceCm();
   if (left_distance < 35) {
@@ -145,6 +117,11 @@ void lastStep() {
   else {
     moveBackward(ONE_BOX_MOVING_MS/4); 
   }
+  backByFrontWall();
+}
+
+void backByFrontWall() {
+  int DISTANCE_TO_STOP = 20; // 20 + 2cm wall + 3cm inertia = 25cm
   int front_distance = ultraSensorFront.distanceCm();
   // move backward
   motorLeft.run(DEFAULT_SPEED + LEFT_OFFSET);
@@ -195,12 +172,8 @@ void rightShortWall() {
 }
 
 void startMotor(int finalSpeed = DEFAULT_SPEED){
-  const int START_SPEED = 120;  
-  for(int speed = START_SPEED; speed <= finalSpeed; speed = speed + 10) {
-    motorLeft.run(-speed);
-    motorRight.run(speed);
-    sleep(10);
-  }
+    motorLeft.run(-finalSpeed);
+    motorRight.run(finalSpeed);
 }
 
 void stopMotor(){
@@ -208,82 +181,45 @@ void stopMotor(){
   for(int speed = DEFAULT_SPEED - 20; speed >= STOP_SPEED; speed = speed - 20) {
     motorLeft.run(speed);
     motorRight.run(-speed);
-    sleep(10);
+    sleep(15);
   }
   stop();
+}
+
+void bottle(MeUltrasonicSensor& ultraSensor) {
+  int BOTTLE_DISTANCE = 35;
+  int distance = ultraSensor.distanceCm();
+  int MOVE_AFTER_MS = 100;
+  startMotor();
+  while (distance > BOTTLE_DISTANCE) {
+    distance = ultraSensor.distanceCm();
+    checkGyro();
+  }
+  //sleep(MOVE_AFTER_MS)
+  stopMotor();
+  pause();
 }
 
 void sideWall(MeUltrasonicSensor& ultraSensor, int move_after_ms) {
   const int MAX_WALL_DISTANCE = 55;
   startMotor();
- 
   int distance = ultraSensor.distanceCm();
-  while (distance > MAX_WALL_DISTANCE) {
+  while (distance < MAX_WALL_DISTANCE) { // skip old walls if any.
     distance = ultraSensor.distanceCm();
     checkGyro();  // keep gyro up to date
   } ;
-
+  while (distance > MAX_WALL_DISTANCE) { // looking for the new wall
+    distance = ultraSensor.distanceCm();
+    checkGyro();  // keep gyro up to date
+  }
   sleep(move_after_ms);
-  stop();
+  stopMotor();
   pause();
-}
-
-void bottleLeft() {
-  bottle(ultraSensorLeft);
-  if (distance < 10) {
-    turnLeft();
-    moveBackward(100);  // REMOVE THE PAUSE
-    turnRight();    
-  }
-  pause();
-}
-
-void bottleRight() {
-  int distance = bottle(ultraSensorRight);
-  if (distance < 10) {
-    turnRight();
-    moveBackward(100);   // REMOVE THE PAUSE
-    turnLeft();
-  }
-  pause();
-}
-
-int bottle(MeUltrasonicSensor& ultraSensor) {
-  const int MAX_WALL_DISTANCE = 55;
-  startMotor(120);
- 
-  int distance = ultraSensor.distanceCm();
-  while (distance < MAX_WALL_DISTANCE) {
-    distance = ultraSensor.distanceCm();
-    checkGyro();  // keep gyro up to date
-  }
-
-  while (distance > MAX_WALL_DISTANCE) {
-    distance = ultraSensor.distanceCm();
-    checkGyro();  // keep gyro up to date
-  }
-  sleep(200);
-  stop();
-  return distance;
-}
-
-
-void enterGate() {
-  startMotor();
-  sleep(ONE_BOX_MOVING_MS/2);
-  stop();
-  sleep(150); // breath
-  // move backward
-  moveBackward(ONE_BOX_MOVING_MS/2 + 100);
 }
 
 void test() {
   init_robot();
-  enterGate();
   sleep(2000);
-  enterGate();
-  sleep(2000);
-  enterGate();
 }
 
 void left(){
@@ -313,7 +249,7 @@ void frontWall() {
     measured_distance_front = ultraSensorFront.distanceCm();
     checkGyro();
   }
-  stop();
+  stopMotor();
   pause();
 }
 
@@ -324,16 +260,6 @@ void turnLeft() {
 
 void turnRight() {
   turn(TURN_90_ANGLE, 'r', TURN_SPEED);
-  adjustPosition();
-}
-
-void turnLeftSlow() {
-  turn(TURN_90_ANGLE_SLOW, 'l', TURN_SPEED_SLOW);
-  adjustPosition();
-}
-
-void turnRightSlow() {
-  turn(TURN_90_ANGLE_SLOW, 'r', TURN_SPEED_SLOW);
   adjustPosition();
 }
 
@@ -368,10 +294,43 @@ void turn(float angle, char rightorleft, uint8_t velocity)
   sleep(100);
 }
 
+void leftSlow() {
+  turnSlow(80, 'l', 150);
+}
+
+void rightSlow() {
+  turnSlow(80, 'r', 150);
+}
+
+void turnSlow(float angle, char rightorleft, uint8_t velocity)
+{
+  float start_heading = checkGyro();
+  float heading = 0;
+  while (heading < angle)
+  {
+    if (rightorleft == 'r')
+    {
+      motorLeft.run(0); 
+      motorRight.run(-velocity);
+    }
+    else if (rightorleft == 'l')
+    {
+      motorLeft.run(velocity); 
+      motorRight.run(0); 
+    }
+    heading = fabs(checkGyro() - start_heading);
+    if (heading > 180.0) {
+      heading = 360.0 - heading;  // 179  - -179
+    }
+  }
+  stop();
+  sleep(100);
+}
+
 void moveForward(int move_millis) {
   startMotor();
   sleep(move_millis - 50);
-  stop();
+  stopMotor();
   pause(); // to meet the target time
 }
 
