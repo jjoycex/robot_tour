@@ -60,7 +60,7 @@ void sleep(unsigned long sleep_ms) {
 
 void front();
 void back();
-void frontWall();
+void frontWall(bool no_pause = false);
 void leftWall();
 void rightWall();
 void leftShortWall();
@@ -187,15 +187,19 @@ void stopMotor(){
 }
 
 void bottle(MeUltrasonicSensor& ultraSensor) {
-  int BOTTLE_DISTANCE = 35;
+  const int BOTTLE_DISTANCE = 55;
+  const int MOVE_AFTER_MS = 30;
   int distance = ultraSensor.distanceCm();
-  int MOVE_AFTER_MS = 100;
   startMotor();
+  while (distance < BOTTLE_DISTANCE) { // skip old walls if any.
+    distance = ultraSensor.distanceCm();
+    checkGyro();  // keep gyro up to date
+  } ;
   while (distance > BOTTLE_DISTANCE) {
     distance = ultraSensor.distanceCm();
     checkGyro();
   }
-  //sleep(MOVE_AFTER_MS)
+  sleep(MOVE_AFTER_MS);
   stopMotor();
   pause();
 }
@@ -238,19 +242,17 @@ void back() {
   moveBackward(ONE_BOX_MOVING_MS);
 }
 
-void frontWall() {
+void frontWall(bool no_pause = false) {
   int measured_distance_front = ultraSensorFront.distanceCm();
-  if (measured_distance_front > 95) { // safety guard, not seeing any wall
-    front();
-    return;
-  }
   startMotor();
   while (measured_distance_front > DISTANCE_TO_WALL) {
     measured_distance_front = ultraSensorFront.distanceCm();
     checkGyro();
   }
   stopMotor();
-  pause();
+  if (!no_pause) {
+    pause();
+  }
 }
 
 void turnLeft() {
@@ -381,7 +383,30 @@ float checkGyro() {
   return heading;
 }
 
+void adjust_by_wall() {
+  int left_distance = ultraSensorLeft.distanceCm();
+  int right_distance = ultraSensorRight.distanceCm();
+  if (left_distance < 10) { // robot width: 14 : ideal width 25 - 7 = 18 
+    turnLeft();
+    backByFrontWall();
+    turnRight();
+  } else if (left_distance > 40 && left_distance < 50) {
+    turnLeft();
+    frontWall(true);
+    turnRight();
+  } else if (right_distance < 10) {
+    turnRight();
+    backByFrontWall();
+    turnLeft();
+  } else if (right_distance > 40 && right_distance < 50) {
+    turnRight();
+    frontWall(true);
+    turnLeft();
+  }
+}
+
 void adjustPosition() {
+  adjust_by_wall();
   float heading_float = checkGyro();
   int heading = ((int)round(checkGyro()) + 360) % 90;
   display(heading_float);
